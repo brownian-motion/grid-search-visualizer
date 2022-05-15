@@ -62,7 +62,6 @@ impl Widget<AppState> for GridWidget {
             }
             Timer(id) if *id == self.timer_id => {
                 if !app_state.paused {
-                    println!(" stepping search");
                     app_state.step_search();
                     ctx.request_paint();
                 }
@@ -108,7 +107,6 @@ impl Widget<AppState> for GridWidget {
             .for_each(|(rect, color)| ctx.fill(rect, color));
         data.grid.cell_origins()
             .map(|(row, col, origin_dr, origin_dc)| -> (Line) {
-                println!("drawing ({},{})+({:+},{:+})", row, col, origin_dr, origin_dc);
                 let target_coord = Point { y: row as f64 + 0.5, x: col as f64 + 0.5 };
                 let source_coord = Point { y: target_coord.y + origin_dr as f64, x: target_coord.x + origin_dc as f64 };
                 Line::new(Point { y: source_coord.y * cell_size.height, x: source_coord.x * cell_size.width }, Point { y: target_coord.y * cell_size.height, x: target_coord.x * cell_size.width })
