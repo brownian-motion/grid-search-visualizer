@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use druid::{Data, Lens};
 use itertools::Itertools;
+use rand::{Rng, thread_rng};
 
 #[derive(Clone, Lens, Data)]
 pub(crate) struct AppState {
@@ -13,6 +14,26 @@ pub(crate) struct AppState {
 }
 
 impl AppState {
+    pub fn new(n_rows: usize, n_cols: usize, fill_percent: f64) -> Self {
+        AppState {
+            grid: Grid::empty(n_rows, n_cols),
+            paused: true,
+            fill_percent: 0.0,
+        }.fill_randomly(fill_percent)
+    }
+
+    pub fn fill_randomly(mut self, p: f64) -> Self {
+        self.fill_percent = p;
+        self.regenerate_grid();
+        self
+    }
+
+    pub fn regenerate_grid(&mut self) {
+        self.paused = true;
+        let mut rng = thread_rng();
+        self.grid.regenerate(|_row, _col| rng.gen_bool(self.fill_percent));
+    }
+
     pub fn search_step_delay(&self) -> Duration {
         Duration::from_millis(300)
     }
@@ -49,7 +70,7 @@ impl Grid {
         }
     }
 
-    pub fn generate<T>(mut self, mut wall_generator: T) -> Self
+    pub fn regenerate<T>(&mut self, mut wall_generator: T) -> &mut Self
         where T: FnMut(usize, usize) -> bool
     {
         for row in 0..self.n_rows {
