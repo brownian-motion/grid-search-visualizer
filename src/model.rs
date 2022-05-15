@@ -6,6 +6,7 @@ use std::time::Duration;
 use druid::{Data, Lens};
 use itertools::Itertools;
 use rand::{Rng, thread_rng};
+
 use crate::DynamicGridSearcher;
 
 type GridPos = (usize, usize);
@@ -16,6 +17,8 @@ pub(crate) struct AppState {
     pub paused: bool,
     pub fill_percent: f64,
     pub searcher: Arc<DynamicGridSearcher>,
+    pub source: GridPos,
+    pub target: GridPos,
 }
 
 pub trait GridSearchStepper {
@@ -30,10 +33,14 @@ impl AppState {
             paused: true,
             fill_percent: 0.0,
             searcher: Arc::new(searcher.into()),
+            source: (usize::MAX, usize::MAX),
+            target: (usize::MAX, usize::MAX),
         }.fill_randomly(fill_percent)
     }
 
     pub fn set_search_endpoints(&mut self, source: GridPos, target: GridPos) {
+        self.source = source;
+        self.target = target;
         self.grid.set_source(source.0, source.1);
         self.grid.set_target(target.0, target.1);
         Arc::make_mut(&mut self.searcher).reset(source, target);
@@ -49,10 +56,11 @@ impl AppState {
         self.paused = true;
         let mut rng = thread_rng();
         self.grid.regenerate(|_row, _col| rng.gen_bool(self.fill_percent));
+        self.set_search_endpoints(self.source, self.target)
     }
 
     pub fn search_step_delay(&self) -> Duration {
-        Duration::from_millis(300)
+        Duration::from_millis(30)
     }
 
     pub fn step_search(&mut self) {
@@ -87,8 +95,11 @@ pub enum CellState {
     TARGET,
 }
 
-const NEIGHBOR_OFFSETS: &'static [(i64, i64); 8] =
-    &[(-1, -1), (0, -1), (1, -1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)];
+const NEIGHBOR_OFFSETS_8WAY: &'static [(i64, i64); 8] =
+    &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)];
+
+const NEIGHBOR_OFFSETS_4WAY: &'static [(i64, i64); 4] =
+    &[(-1, 0), (0, -1), (0, 1), (1, 0)];
 
 impl Grid {
     pub fn empty(n_rows: usize, n_cols: usize) -> Self {
@@ -115,6 +126,9 @@ impl Grid {
     }
 
     fn rc_to_idx(&self, row: usize, col: usize) -> usize {
+        if row >= self.n_rows || col >= self.n_cols {
+            return usize::MAX;
+        }
         row * self.n_cols + col
     }
 
@@ -215,7 +229,7 @@ impl Grid {
     }
 
     pub fn neighbors(&self, row: usize, col: usize) -> Vec<GridPos> {
-        NEIGHBOR_OFFSETS.into_iter()
+        NEIGHBOR_OFFSETS_4WAY.into_iter()
             .map(move |(or, oc)| (or + row as i64, oc + col as i64))
             .filter(|&(r, c): &(i64, i64)| r >= 0 && r < self.n_rows as i64 && c >= 0 && c < self.n_cols as i64)
             .map(|(r, c)| (r as usize, c as usize))

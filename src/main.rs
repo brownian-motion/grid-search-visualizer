@@ -1,6 +1,7 @@
 use std::sync::Arc;
+
 use druid::{AppLauncher, Env, Event, EventCtx, Lens, LocalizedString, PlatformError, Widget, WidgetExt, WindowDesc};
-use druid::widget::{Button, Checkbox, Flex, Slider};
+use druid::widget::{Button, Checkbox, Flex, Label, Slider};
 
 use controller::*;
 use model::*;
@@ -33,6 +34,7 @@ fn build_ui() -> impl Widget<AppState> {
     let percent_fill_slider = Slider::new()
         .with_range(0.0, 1.0)
         .lens(AppState::fill_percent);
+    let percent_fill_label = Label::new(|data: &f64, env: &_| format!("{:02}% fill", (*data * 100.0) as u64).into()).lens(AppState::fill_percent);
 
     let play_button_text = |data: &AppState, env: &Env| (if data.paused { "Play" } else { "Pause" }).into();
     let play_button = Button::new(play_button_text)
@@ -47,7 +49,11 @@ fn build_ui() -> impl Widget<AppState> {
         .with_flex_child(
             Flex::column()
                 .with_child(reset_button)
-                .with_child(percent_fill_slider)
+                .with_child(
+                    Flex::row()
+                        .with_child(percent_fill_slider)
+                        .with_child(percent_fill_label)
+                )
                 .with_default_spacer()
                 .with_child(play_button)
             ,

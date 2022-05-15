@@ -1,9 +1,10 @@
+use std::collections::VecDeque;
+
 use crate::model::*;
-use std::collections::{VecDeque};
 
 type GridPos = (usize, usize);
 
-#[derive( Clone)]
+#[derive(Clone)]
 pub enum DynamicGridSearcher {
     BreadthFirst(BreadthFirstSearcher)
     // TODO: add more
@@ -38,9 +39,7 @@ pub struct BreadthFirstSearcher {
 
 impl BreadthFirstSearcher {
     pub(crate) fn new() -> Self {
-        let mut searcher = BreadthFirstSearcher { frontier: VecDeque::new() };
-        searcher.reset((usize::MAX, usize::MAX), (usize::MAX, usize::MAX));
-        searcher
+        BreadthFirstSearcher { frontier: VecDeque::new() }
     }
 }
 
@@ -56,6 +55,7 @@ impl GridSearchStepper for BreadthFirstSearcher {
 
         if grid.is_target(row, col) {
             println!("  found target");
+            self.frontier.clear();
             return;
         }
 

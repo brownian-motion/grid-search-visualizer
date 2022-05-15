@@ -12,7 +12,7 @@ const COLORS: ColorScheme = &[
     Color::rgb8(0xFF, 0xFF, 0xFF), // OPEN => white
     Color::rgb8(0x00, 0x00, 0x00), // WALL => black
     Color::rgb8(0x40, 0xD8, 0x10), // VISITED => yellowish green
-    Color::rgb8(0xA0, 0xD0, 0x10), // FRONTIER => yellow
+    Color::rgb8(0xD0, 0xA0, 0x10), // FRONTIER => yellow
     Color::rgb8(0x20, 0xFF, 0x20), // SOURCE => bright green
     Color::rgb8(0xFF, 0x20, 0x20), // TARGET => bright red
 ];
