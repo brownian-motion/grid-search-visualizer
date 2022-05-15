@@ -1,3 +1,4 @@
+use std::clone::Clone;
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
@@ -5,6 +6,7 @@ use std::time::Duration;
 use druid::{Data, Lens};
 use itertools::Itertools;
 use rand::{Rng, thread_rng};
+use crate::DynamicGridSearcher;
 
 type GridPos = (usize, usize);
 
@@ -13,7 +15,7 @@ pub(crate) struct AppState {
     pub grid: Grid,
     pub paused: bool,
     pub fill_percent: f64,
-    pub searcher: Arc<Box<dyn GridSearchStepper>>,
+    pub searcher: Arc<DynamicGridSearcher>,
 }
 
 pub trait GridSearchStepper {
@@ -22,21 +24,19 @@ pub trait GridSearchStepper {
 }
 
 impl AppState {
-    pub fn new(n_rows: usize, n_cols: usize, fill_percent: f64, searcher: Box<dyn GridSearchStepper>) -> Self {
+    pub fn new(n_rows: usize, n_cols: usize, fill_percent: f64, searcher: DynamicGridSearcher) -> Self {
         AppState {
             grid: Grid::empty(n_rows, n_cols),
             paused: true,
             fill_percent: 0.0,
-            searcher: searcher.into(),
+            searcher: Arc::new(searcher.into()),
         }.fill_randomly(fill_percent)
     }
 
     pub fn set_search_endpoints(&mut self, source: GridPos, target: GridPos) {
         self.grid.set_source(source.0, source.1);
         self.grid.set_target(target.0, target.1);
-        if let Some(searcher) = Arc::get_mut(&mut self.searcher) {
-            searcher.reset(source, target);
-        }
+        Arc::make_mut(&mut self.searcher).reset(source, target);
     }
 
     pub fn fill_randomly(mut self, p: f64) -> Self {
@@ -56,9 +56,11 @@ impl AppState {
     }
 
     pub fn step_search(&mut self) {
-        if let Some(searcher) = Arc::get_mut(&mut self.searcher) {
-            searcher.step_search(&mut self.grid)
-        }
+        Arc::make_mut(&mut self.searcher).step_search(&mut self.grid)
+    }
+
+    pub fn toggle_paused(&mut self) {
+        self.paused = !self.paused;
     }
 }
 
@@ -84,6 +86,9 @@ pub enum CellState {
     SOURCE,
     TARGET,
 }
+
+const NEIGHBOR_OFFSETS: &'static [(i64, i64); 8] =
+    &[(-1, -1), (0, -1), (1, -1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)];
 
 impl Grid {
     pub fn empty(n_rows: usize, n_cols: usize) -> Self {
@@ -181,8 +186,16 @@ impl Grid {
         self.is_visited[self.rc_to_idx(row, col)]
     }
 
+    pub fn mark_visited(&mut self, row: usize, col: usize) {
+        self.set_state(row, col, CellState::VISITED)
+    }
+
     pub fn is_frontier(&self, row: usize, col: usize) -> bool {
         self.is_frontier[self.rc_to_idx(row, col)]
+    }
+
+    pub fn mark_frontier(&mut self, row: usize, col: usize) {
+        self.set_state(row, col, CellState::FRONTIER)
     }
 
     pub fn is_wall(&self, row: usize, col: usize) -> bool {
@@ -195,5 +208,17 @@ impl Grid {
 
     pub fn is_target(&self, row: usize, col: usize) -> bool {
         self.target_idx == self.rc_to_idx(row, col)
+    }
+
+    pub fn is_untouched(&self, row: usize, col: usize) -> bool {
+        self.cell_state(row, col) == CellState::OPEN
+    }
+
+    pub fn neighbors(&self, row: usize, col: usize) -> Vec<GridPos> {
+        NEIGHBOR_OFFSETS.into_iter()
+            .map(move |(or, oc)| (or + row as i64, oc + col as i64))
+            .filter(|&(r, c): &(i64, i64)| r >= 0 && r < self.n_rows as i64 && c >= 0 && c < self.n_cols as i64)
+            .map(|(r, c)| (r as usize, c as usize))
+            .collect_vec()
     }
 }

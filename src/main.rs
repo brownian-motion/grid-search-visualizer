@@ -1,4 +1,5 @@
-use druid::{AppLauncher, Event, EventCtx, LocalizedString, PlatformError, Widget, WidgetExt, WindowDesc};
+use std::sync::Arc;
+use druid::{AppLauncher, Env, Event, EventCtx, Lens, LocalizedString, PlatformError, Widget, WidgetExt, WindowDesc};
 use druid::widget::{Button, Checkbox, Flex, Slider};
 
 use controller::*;
@@ -12,7 +13,7 @@ mod controller;
 fn main() -> Result<(), PlatformError> {
     let main_window = WindowDesc::new(build_ui)
         .title(LocalizedString::new("app-title").with_placeholder("Grid Search Visualizer"));
-    let mut app_state: AppState = AppState::new(25, 25, 0.3, Box::new(BreadthFirstSearcher::new((5, 5), (20, 20))));
+    let mut app_state: AppState = AppState::new(25, 25, 0.3, BreadthFirstSearcher::new().into());
     app_state.set_search_endpoints((5, 5), (20, 20));
     AppLauncher::with_window(main_window)
         .use_simple_logger()
@@ -32,10 +33,13 @@ fn build_ui() -> impl Widget<AppState> {
     let percent_fill_slider = Slider::new()
         .with_range(0.0, 1.0)
         .lens(AppState::fill_percent);
-    //
-    // let play_button = Checkbox::new("Search").on_click(|ctx: &mut EventCtx, data: &mut AppState, _env: &_| {
-    //     data.paused = !data.paused;
-    // }).lens(AppState::paused);
+
+    let play_button_text = |data: &AppState, env: &Env| (if data.paused { "Play" } else { "Pause" }).into();
+    let play_button = Button::new(play_button_text)
+        .on_click(|ctx: &mut EventCtx, data: &mut AppState, _env: &Env| {
+            data.toggle_paused();
+            ctx.request_update();
+        });
 
     Flex::row()
         .with_flex_spacer(0.5)
@@ -45,7 +49,7 @@ fn build_ui() -> impl Widget<AppState> {
                 .with_child(reset_button)
                 .with_child(percent_fill_slider)
                 .with_default_spacer()
-            // .with_child(play_button)
+                .with_child(play_button)
             ,
             0.5,
         )

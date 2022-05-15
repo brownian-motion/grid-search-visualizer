@@ -1,3 +1,4 @@
+use std::io;
 use std::time::Instant;
 
 use druid::{BoxConstraints, Color, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, TimerToken, UpdateCtx, Widget};
@@ -57,9 +58,12 @@ impl Widget<AppState> for GridWidget {
             WindowConnected => {
                 ctx.request_paint();
                 self.schedule_timer(ctx, app_state);
+                println!("starting timer");
             }
             Timer(id) if *id == self.timer_id => {
+                println!("timer hit!");
                 if !app_state.paused {
+                    println!(" stepping search");
                     app_state.step_search();
                     ctx.request_paint();
                 }
