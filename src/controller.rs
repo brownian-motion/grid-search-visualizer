@@ -11,7 +11,7 @@ pub enum DynamicGridSearcher {
 }
 
 impl GridSearchStepper for DynamicGridSearcher {
-    fn step_search(&mut self, grid: &mut Grid) {
+    fn step_search(&mut self, grid: &mut Grid) -> bool {
         use DynamicGridSearcher::*;
         match self {
             BreadthFirst(delegate) => delegate.step_search(grid)
@@ -44,37 +44,34 @@ impl BreadthFirstSearcher {
 }
 
 impl GridSearchStepper for BreadthFirstSearcher {
-    fn step_search(&mut self, grid: &mut Grid) {
+    fn step_search(&mut self, grid: &mut Grid) -> bool {
         let (row, col) = match self.frontier.pop_front() {
             Some(coord) => coord,
             None => {
-                println!("  we already finished searching");
-                return; // we're already done
+                return true; // we're already done
             }
         };
 
         if grid.is_target(row, col) {
             println!("  found target");
             self.frontier.clear();
-            return;
+            return true;
         }
 
         if grid.is_visited(row, col) {
-            println!("  already visited ({}, {})", row, col);
-            return;
+            return false;
         }
         grid.mark_visited(row, col);
-        println!("  visiting ({}, {})", row, col);
 
         for (nr, nc) in grid.neighbors(row, col) {
-            if !grid.is_untouched(nr, nc) {
-                println!("   skipping neighbor ({}, {})", nr, nc);
+            if grid.is_wall(nr, nc) || grid.is_visited(nr, nc) || grid.is_frontier(nr, nc) {
                 continue;
             }
-            println!("   extending frontier to ({}, {})", nr, nc);
             grid.mark_frontier(nr, nc);
             self.frontier.push_back((nr, nc));
         }
+
+        return false;
     }
 
     fn reset(&mut self, source: GridPos, target: GridPos) {

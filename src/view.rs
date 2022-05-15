@@ -58,10 +58,8 @@ impl Widget<AppState> for GridWidget {
             WindowConnected => {
                 ctx.request_paint();
                 self.schedule_timer(ctx, app_state);
-                println!("starting timer");
             }
             Timer(id) if *id == self.timer_id => {
-                println!("timer hit!");
                 if !app_state.paused {
                     println!(" stepping search");
                     app_state.step_search();

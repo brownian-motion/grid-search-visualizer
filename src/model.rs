@@ -13,34 +13,30 @@ type GridPos = (usize, usize);
 
 #[derive(Clone, Lens, Data)]
 pub(crate) struct AppState {
+    pub grid_size_slider: f64,
     pub grid: Grid,
     pub paused: bool,
     pub fill_percent: f64,
     pub searcher: Arc<DynamicGridSearcher>,
-    pub source: GridPos,
-    pub target: GridPos,
 }
 
 pub trait GridSearchStepper {
-    fn step_search(&mut self, grid: &mut Grid);
+    fn step_search(&mut self, grid: &mut Grid) -> bool;
     fn reset(&mut self, source: GridPos, target: GridPos);
 }
 
 impl AppState {
-    pub fn new(n_rows: usize, n_cols: usize, fill_percent: f64, searcher: DynamicGridSearcher) -> Self {
+    pub fn new(n_rows: usize, fill_percent: f64, searcher: DynamicGridSearcher) -> Self {
         AppState {
-            grid: Grid::empty(n_rows, n_cols),
+            grid_size_slider: n_rows as f64,
+            grid: Grid::empty(25, 25),
             paused: true,
-            fill_percent: 0.0,
+            fill_percent,
             searcher: Arc::new(searcher.into()),
-            source: (usize::MAX, usize::MAX),
-            target: (usize::MAX, usize::MAX),
-        }.fill_randomly(fill_percent)
+        }
     }
 
     pub fn set_search_endpoints(&mut self, source: GridPos, target: GridPos) {
-        self.source = source;
-        self.target = target;
         self.grid.set_source(source.0, source.1);
         self.grid.set_target(target.0, target.1);
         Arc::make_mut(&mut self.searcher).reset(source, target);
@@ -55,16 +51,20 @@ impl AppState {
     pub fn regenerate_grid(&mut self) {
         self.paused = true;
         let mut rng = thread_rng();
+        self.grid = Grid::empty(self.grid_size_slider as usize, self.grid_size_slider as usize);
         self.grid.regenerate(|_row, _col| rng.gen_bool(self.fill_percent));
-        self.set_search_endpoints(self.source, self.target)
+        let source_r = (self.grid_size_slider * 0.2) as usize;
+        let target_r = (self.grid_size_slider * 0.8) as usize;
+        self.set_search_endpoints((source_r, source_r), (target_r, target_r));
     }
 
     pub fn search_step_delay(&self) -> Duration {
-        Duration::from_millis(30)
+        Duration::from_secs(5).div_f64(self.grid_size_slider.powf(3.0))
     }
 
     pub fn step_search(&mut self) {
-        Arc::make_mut(&mut self.searcher).step_search(&mut self.grid)
+        let done = Arc::make_mut(&mut self.searcher).step_search(&mut self.grid);
+        self.paused |= done
     }
 
     pub fn toggle_paused(&mut self) {
@@ -222,10 +222,6 @@ impl Grid {
 
     pub fn is_target(&self, row: usize, col: usize) -> bool {
         self.target_idx == self.rc_to_idx(row, col)
-    }
-
-    pub fn is_untouched(&self, row: usize, col: usize) -> bool {
-        self.cell_state(row, col) == CellState::OPEN
     }
 
     pub fn neighbors(&self, row: usize, col: usize) -> Vec<GridPos> {
