@@ -28,6 +28,7 @@ fn build_ui() -> impl Widget<AppState> {
     let reset_button = Button::new(reset_button_text)
         .on_click(|ctx, data: &mut AppState, _env| {
             data.regenerate_grid();
+            data.paused = false;
             ctx.request_paint();
         })
         .padding(5.0);
