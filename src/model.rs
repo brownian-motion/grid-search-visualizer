@@ -3,7 +3,8 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 
-use druid::{Data, Lens};
+use bitflags::*;
+use druid::{Data, Lens, LensExt};
 use itertools::Itertools;
 use rand::{Rng, thread_rng};
 
@@ -77,11 +78,29 @@ impl AppState {
 pub struct Grid {
     pub n_rows: usize,
     pub n_cols: usize,
-    is_wall: Arc<Vec<bool>>,
-    is_frontier: Arc<Vec<bool>>,
-    is_visited: Arc<Vec<bool>>,
+    cell_data: Arc<Vec<CellInfo>>,
     target_idx: usize,
     source_idx: usize,
+}
+
+bitflags! {
+    struct CellInfo : u8 {
+        const WALL = 1;
+        const FRONTIER  = 2;
+        const VISITED = 4;
+        const FROM_LEFT = 16;
+        const FROM_RIGHT = 32;
+        const FROM_UP = 64;
+        const FROM_DOWN = 128;
+    }
+}
+
+impl CellInfo {
+    fn origin_offset(&self) -> (i64, i64) {
+        let dr = if self.contains(CellInfo::FROM_UP) { -1 } else { if self.contains(CellInfo::FROM_DOWN) { 1 } else { 0 } };
+        let dc = if self.contains(CellInfo::FROM_LEFT) { -1 } else { if self.contains(CellInfo::FROM_RIGHT) { 1 } else { 0 } };
+        return (dr, dc);
+    }
 }
 
 // TODO: incorporate estimated distance from goal, maybe?
@@ -106,9 +125,7 @@ impl Grid {
         Grid {
             n_rows,
             n_cols,
-            is_wall: vec![false; n_rows * n_cols].into(),
-            is_frontier: vec![false; n_rows * n_cols].into(),
-            is_visited: vec![false; n_rows * n_cols].into(),
+            cell_data: vec![CellInfo::empty(); n_rows * n_cols].into(),
             target_idx: usize::MAX,
             source_idx: usize::MAX,
         }
@@ -140,14 +157,8 @@ impl Grid {
         self.set_state(row, col, if is_wall { CellState::WALL } else { CellState::OPEN })
     }
 
-    pub fn clear_visited(&mut self) {
-        Arc::make_mut(&mut self.is_frontier).fill(false);
-        Arc::make_mut(&mut self.is_visited).fill(false);
-    }
-
     pub fn clear(&mut self) {
-        Arc::make_mut(&mut self.is_wall).fill(false);
-        self.clear_visited()
+        Arc::make_mut(&mut self.cell_data).fill(CellInfo::empty());
     }
 
     pub fn cell_state(&self, row: usize, col: usize) -> CellState {
@@ -156,11 +167,11 @@ impl Grid {
             CellState::TARGET
         } else if idx == self.source_idx {
             CellState::SOURCE
-        } else if self.is_wall[idx] {
+        } else if self.cell_data[idx].contains(CellInfo::WALL) {
             CellState::WALL
-        } else if self.is_visited[idx] {
+        } else if self.cell_data[idx].contains(CellInfo::VISITED) {
             CellState::VISITED
-        } else if self.is_frontier[idx] {
+        } else if self.cell_data[idx].contains(CellInfo::FRONTIER) {
             CellState::FRONTIER
         } else {
             CellState::OPEN
@@ -180,9 +191,10 @@ impl Grid {
 
         let idx = self.rc_to_idx(row, col);
 
-        Arc::make_mut(&mut self.is_wall)[idx] = (state == WALL);
-        Arc::make_mut(&mut self.is_visited)[idx] = (state == VISITED);
-        Arc::make_mut(&mut self.is_frontier)[idx] = (state == FRONTIER);
+        let cell_data = Arc::make_mut(&mut self.cell_data);
+        cell_data[idx].set(CellInfo::WALL, state == WALL);
+        cell_data[idx].set(CellInfo::FRONTIER, state == FRONTIER);
+        cell_data[idx].set(CellInfo::VISITED, state == VISITED);
 
         if state == TARGET {
             self.target_idx = idx
@@ -192,12 +204,19 @@ impl Grid {
     }
 
     pub fn cell_states<'a>(&'a self) -> impl Iterator<Item=(usize, usize, CellState)> + 'a {
-        let coords = (0..(self.n_rows * self.n_cols)).map(|idx| self.idx_to_rc(idx));
-        coords.map(|(row, col)| (row, col, self.cell_state(row, col)))
+        (0usize..(self.n_rows * self.n_cols))
+            .map(|idx: usize| self.idx_to_rc(idx))
+            .map(|(row, col): (usize, usize)| (row, col, self.cell_state(row, col)))
+    }
+
+    pub fn cell_origins<'a>(&'a self) -> impl Iterator<Item=(usize, usize, i64, i64)> + 'a {
+        (0..(self.n_rows * self.n_cols))
+            .map(|idx: usize| (self.idx_to_rc(idx), self.cell_data[idx].origin_offset()))
+            .map(|((row, col), (dr, dc)) : ((usize, usize),(i64,i64))| (row, col, dr, dc))
     }
 
     pub fn is_visited(&self, row: usize, col: usize) -> bool {
-        self.is_visited[self.rc_to_idx(row, col)]
+        self.cell_data[self.rc_to_idx(row, col)].contains(CellInfo::VISITED)
     }
 
     pub fn mark_visited(&mut self, row: usize, col: usize) {
@@ -205,7 +224,7 @@ impl Grid {
     }
 
     pub fn is_frontier(&self, row: usize, col: usize) -> bool {
-        self.is_frontier[self.rc_to_idx(row, col)]
+        self.cell_data[self.rc_to_idx(row, col)].contains(CellInfo::FRONTIER)
     }
 
     pub fn mark_frontier(&mut self, row: usize, col: usize) {
@@ -213,7 +232,7 @@ impl Grid {
     }
 
     pub fn is_wall(&self, row: usize, col: usize) -> bool {
-        self.is_wall[self.rc_to_idx(row, col)]
+        self.cell_data[self.rc_to_idx(row, col)].contains(CellInfo::WALL)
     }
 
     pub fn is_source(&self, row: usize, col: usize) -> bool {
@@ -230,5 +249,15 @@ impl Grid {
             .filter(|&(r, c): &(i64, i64)| r >= 0 && r < self.n_rows as i64 && c >= 0 && c < self.n_cols as i64)
             .map(|(r, c)| (r as usize, c as usize))
             .collect_vec()
+    }
+
+    pub fn set_origin(&mut self, source: GridPos, target: GridPos) {
+        let target_idx = self.rc_to_idx(target.0, target.1);
+
+        let cell_data = Arc::make_mut(&mut self.cell_data);
+        cell_data[target_idx].set(CellInfo::FROM_UP, source.0 < target.0);
+        cell_data[target_idx].set(CellInfo::FROM_DOWN, source.0 > target.0);
+        cell_data[target_idx].set(CellInfo::FROM_LEFT, source.1 < target.1);
+        cell_data[target_idx].set(CellInfo::FROM_RIGHT, source.1 > target.1);
     }
 }

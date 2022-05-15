@@ -67,6 +67,7 @@ impl GridSearchStepper for BreadthFirstSearcher {
             if grid.is_wall(nr, nc) || grid.is_visited(nr, nc) || grid.is_frontier(nr, nc) {
                 continue;
             }
+            grid.set_origin((row, col),(nr, nc));
             grid.mark_frontier(nr, nc);
             self.frontier.push_back((nr, nc));
         }

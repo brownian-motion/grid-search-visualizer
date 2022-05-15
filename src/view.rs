@@ -2,6 +2,7 @@ use std::io;
 use std::time::Instant;
 
 use druid::{BoxConstraints, Color, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, TimerToken, UpdateCtx, Widget};
+use druid::kurbo::Line;
 use rand::Rng;
 
 use crate::model::*;
@@ -105,5 +106,13 @@ impl Widget<AppState> for GridWidget {
                 )
             })
             .for_each(|(rect, color)| ctx.fill(rect, color));
+        data.grid.cell_origins()
+            .map(|(row, col, origin_dr, origin_dc)| -> (Line) {
+                println!("drawing ({},{})+({:+},{:+})", row, col, origin_dr, origin_dc);
+                let target_coord = Point { y: row as f64 + 0.5, x: col as f64 + 0.5 };
+                let source_coord = Point { y: target_coord.y + origin_dr as f64, x: target_coord.x + origin_dc as f64 };
+                Line::new(Point { y: source_coord.y * cell_size.height, x: source_coord.x * cell_size.width }, Point { y: target_coord.y * cell_size.height, x: target_coord.x * cell_size.width })
+            })
+            .for_each(|line| ctx.stroke(line, &Color::rgba8(0, 255, 255, 127), 5.0));
     }
 }

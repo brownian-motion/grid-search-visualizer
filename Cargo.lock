@@ -623,6 +623,7 @@ dependencies = [
 name = "grid-search-visualizer"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "druid",
  "itertools 0.10.3",
  "rand",
