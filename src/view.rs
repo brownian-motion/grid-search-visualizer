@@ -51,18 +51,19 @@ impl GridWidget {
 }
 
 impl Widget<AppState> for GridWidget {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, app_state: &mut AppState, _env: &Env) {
+        use Event::*;
         match event {
-            Event::WindowConnected => {
+            WindowConnected => {
                 ctx.request_paint();
-                self.schedule_timer(ctx, data);
+                self.schedule_timer(ctx, app_state);
             }
-            Event::Timer(id) if *id == self.timer_id => {
-                if !data.paused {
-                    // TODO: step through the grid search
+            Timer(id) if *id == self.timer_id => {
+                if !app_state.paused {
+                    app_state.step_search();
                     ctx.request_paint();
                 }
-                self.schedule_timer(ctx, data);
+                self.schedule_timer(ctx, app_state);
             }
             _ => {}
         }
